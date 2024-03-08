@@ -4,6 +4,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def quantile_loss(qvalues, target, quantiles):
+        upper = F.relu(qvalues - target) * (1 - quantiles)
+        lower = F.relu(target - qvalues) * quantiles
+        loss = (upper + lower).sum(dim=(1,2,3))
+        return loss.mean()
+
+
 class QuantileDeepTCNModule(DeepTCNModule):
     def __init__(
             self, 
@@ -31,19 +38,14 @@ class QuantileDeepTCNModule(DeepTCNModule):
         output = self.output(h)
         qvalues = output.reshape(*output.size()[:2], self.target_dim, len(self.quantiles))
         return qvalues
-    
-    def quantile_loss(self, qvalues, target, quantiles):
-        upper = F.relu(qvalues - target[..., None]) * (1 - quantiles)
-        lower = F.relu(target[..., None] - qvalues) * quantiles
-        loss = (upper + lower).sum(dim=(1,2,3))
-        return loss.mean()
 
     def training_step(self, batch, batch_idx):
         past_cov, past_target, future_cov, future_target = batch
         qvalues = self.forward(past_target, past_cov, future_cov)
         quantiles = torch.tensor(self.quantiles, device=self.device)
+        future_target = future_target[..., None] #reshaping
         quantiles = quantiles[None, None, None, :] # reshaping
-        loss = self.quantile_loss(qvalues, future_target, quantiles)
+        loss = quantile_loss(qvalues, future_target, quantiles)
         self.log("train_loss", loss)
         return loss
 
@@ -68,11 +70,11 @@ class QuantileDeepTCN(DeepTCN):
             num_epochs=10,
             verbose=False,
         ):
+        self.quantiles = quantiles
         super().__init__(
             input_len, output_len, hidden_dim, dropout, kernel_size, num_layers, 
             lr, batch_size, num_epochs, verbose
         )
-        self.quantiles = quantiles
 
     def _create_model(self, target, past_covariates=None, future_covariates=None):
         self.model = QuantileDeepTCNModule(
@@ -93,6 +95,6 @@ class QuantileDeepTCN(DeepTCN):
         past_target, past_covariates, future_covariates = self._preprocess_input(
             past_target, past_covariates, future_covariates)
         with torch.no_grad():
-            q = self.model(past_target, past_covariates, future_covariates)
-        q = q[0, -self.output_len:, :]
-        return q.cpu().numpy()
+            qvalues = self.model(past_target, past_covariates, future_covariates)
+        qvalues = qvalues[0, -self.output_len:, :]
+        return qvalues.cpu().numpy()
