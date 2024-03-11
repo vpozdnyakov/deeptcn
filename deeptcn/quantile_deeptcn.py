@@ -5,10 +5,13 @@ import torch.nn.functional as F
 
 
 def quantile_loss(qvalues, target, quantiles):
-        upper = F.relu(qvalues - target) * (1 - quantiles)
-        lower = F.relu(target - qvalues) * quantiles
-        loss = (upper + lower).sum(dim=(1,2,3))
-        return loss.mean()
+    """
+    Quantile loss corresponds to Eq. 6 in the main paper.
+    """
+    upper = F.relu(qvalues - target) * (1 - quantiles) * 2
+    lower = F.relu(target - qvalues) * quantiles * 2
+    loss = (upper + lower).sum(dim=(1,2,3))
+    return loss.mean()
 
 
 class QuantileDeepTCNModule(DeepTCNModule):
@@ -32,7 +35,7 @@ class QuantileDeepTCNModule(DeepTCNModule):
             dropout, num_layers, lr, with_past_covariates, with_future_covariates,
         )
 
-    def _create_output(self):
+    def create_output(self):
         self.output = nn.Linear(self.hidden_dim, self.target_dim * len(self.quantiles))
     
     def forward(self, past_target, past_cov=None, future_cov=None):
@@ -42,42 +45,57 @@ class QuantileDeepTCNModule(DeepTCNModule):
         qvalues = output.reshape(*output.size()[:2], self.target_dim, len(self.quantiles))
         return qvalues
 
-    def training_step(self, batch, batch_idx):
+    def calc_loss(self, batch):
         past_cov, past_target, future_cov, future_target = batch
         qvalues = self.forward(past_target, past_cov, future_cov)
         quantiles = torch.tensor(self.quantiles, device=self.device)
         future_target = future_target[..., None] #reshaping
         quantiles = quantiles[None, None, None, :] # reshaping
-        loss = quantile_loss(qvalues, future_target, quantiles)
-        self.log("train_loss", loss)
-        return loss
+        return quantile_loss(qvalues, future_target, quantiles)
 
 
 class QuantileDeepTCN(DeepTCN):
     """
-    DeepTCN probabilistic model, the implementation is based on the paper Chen, 
-    Yitian, et al. "Probabilistic forecasting with temporal convolutional neural 
-    network." Neurocomputing 399 (2020): 491-501.
+    DeepTCN-Quantile probabilistic model.
     """
     def __init__(
             self, 
-            input_len, 
-            output_len, 
-            hidden_dim: int=128,
+            input_len: int, 
+            output_len: int, 
+            hidden_dim: int=64,
             dropout: float=0.,
             kernel_size: int=3,
             num_layers: int=2,
-            quantiles: list[int]=[0.5, 0.9],
+            quantiles: list[int]=[0.1, 0.5, 0.9],
             lr: float=0.001,
-            batch_size=32,
-            num_epochs=10,
-            verbose=False,
-            accelerator='auto',
+            batch_size: int=32,
+            num_epochs: int=10,
+            verbose: bool=False,
+            accelerator: str='auto',
+            validation_size: float=0.,
         ):
+        """
+        Args:
+            input_len: Length of an input time series (lookback window size).
+            output_len: Length of an output time series (forecasting horizon).
+            hidden_dim: Hidden dimensionality of TCN modules and the resnet-v module.
+            dropout: Dropout rate.
+            kernel_size: Kernel size of TCN modules.
+            num_layers: Number of TCN modules.
+            quantiles: List of predicted quantiles.
+            lr: Learning rate.
+            batch_size: Batch size.
+            num_epochs: Number of epochs.
+            verbose: Shows the progress bar during training.
+            accelerator: Supports passing different accelerator types 
+                ("cpu", "gpu", "tpu", "ipu", "hpu", "mps", "auto") as well as 
+                custom accelerator instances.
+            validation_size: The fraction (from 0 to 1) of train data for validation.
+        """
         self.quantiles = quantiles
         super().__init__(
             input_len, output_len, hidden_dim, dropout, kernel_size, num_layers, 
-            lr, batch_size, num_epochs, verbose, accelerator
+            lr, batch_size, num_epochs, verbose, accelerator, validation_size
         )
 
     def _create_model(self):
@@ -96,9 +114,27 @@ class QuantileDeepTCN(DeepTCN):
         )
 
     def predict(self, past_target, past_covariates=None, future_covariates=None):
+        """
+        Predict/forecast the given time series.
+
+        Args:
+            past_target: Past target time series. Array of the shape (n, m) 
+                where n is the input length and m is the number of components.
+            past_covariates: Past covariates. Array of the shape (n, m) where n 
+                is the input length and m is the number of components.
+            future_covariates: Future covariates. Array of the shape (n, m) 
+                where n is the output length and m is the number of components.
+        
+        Returns:
+            List[np.ndarray]: Quantile values represent distribution of the forecast. 
+                All arrays are of the shape (n, m) where n is the output 
+                length and m is the number of components. Order corresponds to
+                quantiles in the initialization.
+        """
         past_target, past_covariates, future_covariates = self._preprocess_input(
             past_target, past_covariates, future_covariates)
         with torch.no_grad():
             qvalues = self.model(past_target, past_covariates, future_covariates)
         qvalues = qvalues[0, -self.output_len:, :]
-        return qvalues.cpu().numpy()
+        qvalues = qvalues.cpu().numpy()
+        return [qvalues[:, :, i] for i in range(len(self.quantiles))]

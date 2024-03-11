@@ -1,0 +1,16 @@
+[project]
+name = 'deeptcn'
+version = '1.0.0'
+description = 'Probabilistic multivariate time series forecasting using temporal convolutional networks.'
+authors = [{name = 'Vitaliy Pozdnyakov', email = 'pozdnyakov.vitaliy@yandex.ru'}]
+requires-python = '>=3.10'
+dependencies = [
+    'numpy>=1.25.2',
+    'pandas>=1.5.3',
+    'torch>=2.1.0',
+    'matplotlib>=3.7.1',
+    'scipy>=1.11.4',
+]
+
+[tool.setuptools]
+packages = ['deeptcn']
