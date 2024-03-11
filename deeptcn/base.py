@@ -2,6 +2,7 @@ from pytorch_lightning import Trainer, LightningModule
 from pytorch_lightning.loggers import CSVLogger
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 import numpy as np
@@ -56,8 +57,8 @@ class DeepTCNModule(LightningModule):
         dropout: float,
         num_layers: int,
         lr: float,
-        uses_past_covariates: bool,
-        uses_future_covariates: bool,
+        with_past_covariates: bool,
+        with_future_covariates: bool,
     ):
 
         super().__init__()
@@ -70,9 +71,8 @@ class DeepTCNModule(LightningModule):
         self.dropout = dropout
         self.num_layers = num_layers
         self.lr = lr
-
-        self.uses_past_covariates = uses_past_covariates
-        self.uses_future_covariates = uses_future_covariates
+        self.with_future_covariates = with_future_covariates
+        self.with_past_covariates = with_past_covariates
         
         self.encoder = TCNModule(
             input_size=target_dim + past_cov_dim,
@@ -98,11 +98,11 @@ class DeepTCNModule(LightningModule):
         pass
 
     def hidden_state(self, past_target, past_cov=None, future_cov=None):
-        if self.uses_past_covariates:
+        if self.with_past_covariates:
             past_target = torch.cat([past_target, past_cov], dim=2)
         h = self.encoder(past_target)
-        if self.uses_future_covariates:
-            h = self.decoder(future_cov)
+        if self.with_future_covariates:
+            h = self.decoder(future_cov, h)
         return h
 
     def configure_optimizers(self):
@@ -122,7 +122,8 @@ class DeepTCN():
             lr, 
             batch_size, 
             num_epochs, 
-            verbose
+            verbose,
+            accelerator,
         ):
 
         assert output_len < input_len, "DeepTCN requires the output is stronly less than the input"
@@ -138,16 +139,29 @@ class DeepTCN():
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.verbose = verbose
+        self.accelerator = accelerator
+
+        self.with_past_covariates = None
+        self.with_future_covariates = None
+        self.past_cov_dim = None
+        self.future_cov_dim = None
+        self.target_dim = None
     
-    def _create_model(self, target, past_covariates=None, future_covariates=None):
+    def _create_model(self):
         pass
 
     def fit(self, target, past_covariates=None, future_covariates=None):
-        self._create_model(target, past_covariates, future_covariates)
+        self.with_past_covariates = True if past_covariates is not None else False
+        self.with_future_covariates = True if future_covariates is not None else False
+        self.past_cov_dim = past_covariates.shape[1] if self.with_past_covariates else 0
+        self.future_cov_dim = future_covariates.shape[1] if self.with_future_covariates else 0
+        self.target_dim = target.shape[1]
+        
+        self._create_model()
         self.dataset = SlidingWindowDataset(
-            target=target.values,
-            past_cov=past_covariates.values if past_covariates else None,
-            future_cov=future_covariates.values if future_covariates else None, 
+            target=target,
+            past_cov=past_covariates,
+            future_cov=future_covariates, 
             window_size=self.input_len,
             step_size=1,
             shift_size=self.output_len,
@@ -159,10 +173,10 @@ class DeepTCN():
         )
         self.trainer = Trainer(
             enable_progress_bar=self.verbose,
-            accelerator='auto',
             max_epochs=self.num_epochs,
             log_every_n_steps=np.ceil(len(self.dataloader) * 0.1),
             logger=CSVLogger('.'),
+            accelerator=self.accelerator,
         )
         self.trainer.fit(
             model=self.model, 
@@ -170,10 +184,22 @@ class DeepTCN():
         )
         self.model.eval()
     
-    def _preprocess_input(self, past_target, past_covariates=None, future_covariates=None):
-        past_target = torch.as_tensor(past_target, device=self.model.device)[None, ...]
-        if past_covariates:
-            past_covariates = torch.as_tensor(past_covariates, device=self.model.device)[None, ...]
-        if future_covariates:
-            future_covariates = torch.as_tensor(future_covariates, device=self.model.device)[None, ...]
+    def _preprocess_input(self, past_target, past_covariates, future_covariates):
+        assert self.with_past_covariates == (past_covariates is not None), "Unexpected past covariates"
+        assert self.with_future_covariates == (future_covariates is not None), "Unexpected future covariates"
+        assert past_target.shape == (self.input_len, self.target_dim), "Unexpected input target shape"
+        past_target = torch.as_tensor(
+            past_target, dtype=torch.float32, device=self.model.device
+            )[None, ...]
+        if self.with_past_covariates:
+            assert past_covariates.shape == (self.input_len, self.past_cov_dim), "Unexpected past covariance shape"
+            past_covariates = torch.as_tensor(
+                past_covariates, dtype=torch.float32, device=self.model.device
+            )[None, ...]
+        if self.with_future_covariates:
+            assert future_covariates.shape == (self.output_len, self.future_cov_dim), "Unexpected future covariance shape"
+            future_covariates = torch.as_tensor(
+                future_covariates, dtype=torch.float32, device=self.model.device
+            )[None, ...]
+            future_covariates = F.pad(future_covariates, (0, 0, self.input_len - self.output_len, 0))
         return past_target, past_covariates, future_covariates

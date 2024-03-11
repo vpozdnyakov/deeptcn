@@ -42,33 +42,35 @@ class GaussianDeepTCN(DeepTCN):
             batch_size=32,
             num_epochs=10,
             verbose=False,
+            accelerator='auto',
         ):
         super().__init__(
             input_len, output_len, hidden_dim, dropout, kernel_size, num_layers, 
-            lr, batch_size, num_epochs, verbose
+            lr, batch_size, num_epochs, verbose, accelerator
         )
 
-    def _create_model(self, target, past_covariates=None, future_covariates=None):
+    def _create_model(self):
         self.model = GaussianDeepTCNModule(
-            target_dim=len(target.columns),
-            past_cov_dim=len(past_covariates.columns) if past_covariates else 0,
-            future_cov_dim=len(future_covariates.columns) if future_covariates else 0,
+            target_dim=self.target_dim,
+            past_cov_dim=self.past_cov_dim,
+            future_cov_dim=self.future_cov_dim,
             hidden_dim=self.hidden_dim,
             kernel_size=self.kernel_size,
             dropout=self.dropout,
             num_layers=self.num_layers,
             lr=self.lr,
-            uses_past_covariates=past_covariates is not None,
-            uses_future_covariates=future_covariates is not None,
+            with_past_covariates=self.with_past_covariates,
+            with_future_covariates=self.with_future_covariates,
         )
 
     def predict(self, past_target, past_covariates=None, future_covariates=None):
         past_target, past_covariates, future_covariates = self._preprocess_input(
             past_target, past_covariates, future_covariates)
         with torch.no_grad():
-            mu, _ = self.model(past_target, past_covariates, future_covariates)
+            mu, sigma = self.model(past_target, past_covariates, future_covariates)
         mu = mu[0, -self.output_len:, :]
-        return mu.cpu().numpy()
+        sigma = sigma[0, -self.output_len:, :]
+        return mu.cpu().numpy(), sigma.cpu().numpy()
     
     def sample(self, past_target, past_covariates=None, future_covariates=None, n_samples=100):
         past_target, past_covariates, future_covariates = self._preprocess_input(

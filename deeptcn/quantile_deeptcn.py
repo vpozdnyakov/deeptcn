@@ -23,11 +23,14 @@ class QuantileDeepTCNModule(DeepTCNModule):
             num_layers: int, 
             quantiles: list[int],
             lr: float, 
-            uses_past_covariates: bool, 
-            uses_future_covariates: bool
+            with_past_covariates: bool,
+            with_future_covariates: bool,
         ):
         self.quantiles = quantiles
-        super().__init__(target_dim, past_cov_dim, future_cov_dim, hidden_dim, kernel_size, dropout, num_layers, lr, uses_past_covariates, uses_future_covariates)
+        super().__init__(
+            target_dim, past_cov_dim, future_cov_dim, hidden_dim, kernel_size, 
+            dropout, num_layers, lr, with_past_covariates, with_future_covariates,
+        )
 
     def _create_output(self):
         self.output = nn.Linear(self.hidden_dim, self.target_dim * len(self.quantiles))
@@ -69,26 +72,27 @@ class QuantileDeepTCN(DeepTCN):
             batch_size=32,
             num_epochs=10,
             verbose=False,
+            accelerator='auto',
         ):
         self.quantiles = quantiles
         super().__init__(
             input_len, output_len, hidden_dim, dropout, kernel_size, num_layers, 
-            lr, batch_size, num_epochs, verbose
+            lr, batch_size, num_epochs, verbose, accelerator
         )
 
-    def _create_model(self, target, past_covariates=None, future_covariates=None):
+    def _create_model(self):
         self.model = QuantileDeepTCNModule(
-            target_dim=len(target.columns),
-            past_cov_dim=len(past_covariates.columns) if past_covariates else 0,
-            future_cov_dim=len(future_covariates.columns) if future_covariates else 0,
+            target_dim=self.target_dim,
+            past_cov_dim=self.past_cov_dim,
+            future_cov_dim=self.future_cov_dim,
             hidden_dim=self.hidden_dim,
             kernel_size=self.kernel_size,
             dropout=self.dropout,
             num_layers=self.num_layers,
             quantiles=self.quantiles,
             lr=self.lr,
-            uses_past_covariates=past_covariates is not None,
-            uses_future_covariates=future_covariates is not None,
+            with_past_covariates=self.with_past_covariates,
+            with_future_covariates=self.with_future_covariates,
         )
 
     def predict(self, past_target, past_covariates=None, future_covariates=None):

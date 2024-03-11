@@ -19,28 +19,17 @@ class SlidingWindowDataset(Dataset):
         return (len(self.target) - self.window_size - self.shift_size + 1) // self.step_size
     
     def __getitem__(self, idx):
-        past_target = self.target[range(idx*self.step_size, idx*self.step_size + self.window_size)]
-        future_target_sample = self.target[range(
-            idx*self.step_size + self.shift_size, 
-            idx*self.step_size + self.window_size + self.shift_size
-        )]
-
-        past_cov_sample = np.array([[0]])
-        future_cov_sample = np.array([[0]])
-        if self.past_cov is not None:
-            past_cov_sample = self.past_cov[range(
-                idx*self.step_size, 
-                idx*self.step_size + self.window_size
-            )]
-        if self.future_cov is not None:
-            future_cov_sample = self.future_cov[range(
-                idx*self.step_size + self.shift_size, 
-                idx*self.step_size + self.window_size + self.shift_size
-            )]
-
+        past_range = np.arange(idx*self.step_size, idx*self.step_size + self.window_size)
+        future_range = past_range + self.shift_size
+        
+        past_target = self.target[past_range]
+        future_target = self.target[future_range]
+        past_cov = self.past_cov[past_range] if self.past_cov is not None else [[0]]
+        future_cov = self.future_cov[past_range] if self.future_cov is not None else [[0]]
+        
         return (
-            torch.as_tensor(past_cov_sample, dtype=torch.float32),
-            torch.as_tensor(past_target, dtype=torch.float32),
-            torch.as_tensor(future_cov_sample, dtype=torch.float32),
-            torch.as_tensor(future_target_sample, dtype=torch.float32),
+            torch.as_tensor(past_cov, dtype=torch.float32), 
+            torch.as_tensor(past_target, dtype=torch.float32), 
+            torch.as_tensor(future_cov, dtype=torch.float32), 
+            torch.as_tensor(future_target, dtype=torch.float32)
         )
