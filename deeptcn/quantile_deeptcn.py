@@ -8,9 +8,9 @@ def quantile_loss(qvalues, target, quantiles):
     """
     Quantile loss corresponds to Eq. 6 in the main paper.
     """
-    upper = F.relu(qvalues - target) * (1 - quantiles) * 2
-    lower = F.relu(target - qvalues) * quantiles * 2
-    loss = (upper + lower).sum(dim=(1,2,3))
+    upper = F.relu(qvalues - target) * (1 - quantiles)
+    lower = F.relu(target - qvalues) * quantiles
+    loss = 2 * (upper + lower).sum(dim=(1,2,3))
     return loss.mean()
 
 
