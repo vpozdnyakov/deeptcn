@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 from deeptcn.tcn import TCNModule
 from deeptcn.utils import SlidingWindowDataset
@@ -62,7 +62,7 @@ class DeepTCNModule(LightningModule):
     ):
 
         super().__init__()
-
+        self.save_hyperparameters()
         self.target_dim = target_dim
         self.past_cov_dim = past_cov_dim
         self.future_cov_dim = future_cov_dim
@@ -107,7 +107,7 @@ class DeepTCNModule(LightningModule):
     
     def training_step(self, batch, batch_idx):
         loss = self.calc_loss(batch)
-        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_loss", loss)
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -184,33 +184,28 @@ class DeepTCN():
         """
         self._init_from_input(target, past_covariates, future_covariates)
         self._create_model()
-        train_range = range(0, int(len(target)*(1-self.validation_size)))
-        self.train_dataset = SlidingWindowDataset(
-            target=target[train_range],
-            past_cov=past_covariates[train_range] if self.with_past_covariates else None,
-            future_cov=future_covariates[train_range] if self.with_future_covariates else None, 
+        
+        dataset = SlidingWindowDataset(
+            target=target,
+            past_cov=past_covariates,
+            future_cov=future_covariates, 
             window_size=self.input_len,
             step_size=1,
             shift_size=self.output_len,
         )
+        random_idx = np.random.permutation(np.arange(len(dataset)))
+        train_size = 1 - self.validation_size
+        train_idx = random_idx[:int(train_size*len(dataset))]
         self.train_dataloader = DataLoader(
-            self.train_dataset,
+            Subset(dataset, train_idx),
             batch_size=self.batch_size,
             shuffle=True,
         )
         self.val_dataloader = None
         if self.validation_size:
-            val_range = range(int(len(target)*(1-self.validation_size)), len(target))
-            self.val_dataset = SlidingWindowDataset(
-                target=target[val_range],
-                past_cov=past_covariates[val_range] if self.with_past_covariates else None,
-                future_cov=future_covariates[val_range] if self.with_future_covariates else None, 
-                window_size=self.input_len,
-                step_size=1,
-                shift_size=self.output_len,
-            )
+            val_idx = random_idx[int(train_size*len(dataset)):]
             self.val_dataloader = DataLoader(
-                self.val_dataset,
+                Subset(dataset, val_idx),
                 batch_size=self.batch_size,
                 shuffle=False,
             )

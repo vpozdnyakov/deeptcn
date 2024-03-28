@@ -1,6 +1,13 @@
 import pandas as pd
 from deeptcn import GaussianDeepTCN, QuantileDeepTCN
+import pytest
 
+testparams = [
+    [False, False],
+    [False, True],
+    [True, False],
+    [True, True],
+]
 
 class TestOnElectricity:
     def setup_class(self):
@@ -10,13 +17,23 @@ class TestOnElectricity:
         electricity_train.index = pd.to_datetime(electricity_train.index)
         electricity_test = pd.read_csv('datasets/electricity/electricity_test.csv', index_col=0)
         electricity_test.index = pd.to_datetime(electricity_test.index)
-        self.train_target, self.train_cov = electricity_train.iloc[:, :370], electricity_train.iloc[:, 372:374]
-        self.test_target, self.test_cov = electricity_test.iloc[:, :370], electricity_test.iloc[:, 372:374]
+        self.train_target, self.train_past_cov, self.train_future_cov = (
+            electricity_train.iloc[:, 350:370], 
+            electricity_train.iloc[:, :350], 
+            electricity_train.iloc[:, 372:374]
+        )
+        self.test_target, self.test_past_cov, self.test_future_cov = (
+            electricity_test.iloc[:, 350:370],
+            electricity_test.iloc[:, :350],  
+            electricity_test.iloc[:, 372:374]
+        )
         self.past_target = self.test_target.iloc[:self.input_len]
-        self.future_cov = self.test_cov.iloc[self.input_len:]
+        self.past_cov = self.test_past_cov.iloc[:self.input_len]
+        self.future_cov = self.test_future_cov.iloc[self.input_len:]
         self.future_target = self.test_target.iloc[self.input_len:]
-        
-    def test_gaussian(self):
+    
+    @pytest.mark.parametrize("with_past_cov,with_future_cov", testparams)
+    def test_gaussian(self, with_past_cov, with_future_cov):
         model = GaussianDeepTCN(
             input_len=self.input_len,
             output_len=self.output_len,
@@ -31,11 +48,16 @@ class TestOnElectricity:
             validation_size=0.2,
             accelerator='cpu',
         )
-        model.fit(self.train_target.values, future_covariates=self.train_cov.values)
-        pred_mu, _ = model.predict(self.past_target.values, future_covariates=self.future_cov.values)
+        train_past_cov = self.train_past_cov.values if with_past_cov else None
+        train_future_cov = self.train_future_cov.values if with_future_cov else None
+        model.fit(self.train_target.values, past_covariates=train_past_cov, future_covariates=train_future_cov)
+        past_cov = self.past_cov.values if with_past_cov else None
+        future_cov = self.future_cov.values if with_future_cov else None
+        pred_mu, _ = model.predict(self.past_target.values, past_covariates=past_cov, future_covariates=future_cov)
         assert pred_mu.shape == self.future_target.shape
 
-    def test_quantile(self):
+    @pytest.mark.parametrize("with_past_cov,with_future_cov", testparams)
+    def test_quantile(self, with_past_cov, with_future_cov):
         model = QuantileDeepTCN(
             input_len=self.input_len,
             output_len=self.output_len,
@@ -51,6 +73,10 @@ class TestOnElectricity:
             quantiles=[0.1, 0.5, 0.8],
             accelerator='cpu',
         )
-        model.fit(self.train_target.values, future_covariates=self.train_cov.values)
-        pred_q01, _, _ = model.predict(self.past_target.values, future_covariates=self.future_cov.values)
+        train_past_cov = self.train_past_cov.values if with_past_cov else None
+        train_future_cov = self.train_future_cov.values if with_future_cov else None
+        model.fit(self.train_target.values, past_covariates=train_past_cov, future_covariates=train_future_cov)
+        past_cov = self.past_cov.values if with_past_cov else None
+        future_cov = self.future_cov.values if with_future_cov else None
+        pred_q01, _, _ = model.predict(self.past_target.values, past_covariates=past_cov, future_covariates=future_cov)
         assert pred_q01.shape == self.future_target.shape
