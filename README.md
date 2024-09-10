@@ -10,7 +10,7 @@ This implementation is based on the Pytorch Lightning framework.
 
 Install deeptcn using pip as follows:
 
-`pip install deeptcn`
+`pip install git+https://github.com/vpozdnyakov/deeptcn.git`
 
 # Quick start
 
@@ -35,7 +35,8 @@ model.fit(train_target.values)
 
 # Forecasting with the 80% confidence interval
 pred_mu, pred_sigma = model.predict(past_target.values)
-pred_q05 = norm.ppf(q=0.9, loc=pred_mu, scale=pred_sigma)
+pred_q01 = norm.ppf(q=0.1, loc=pred_mu, scale=pred_sigma)
+pred_q09 = norm.ppf(q=0.9, loc=pred_mu, scale=pred_sigma)
 print(f'Pinball loss, alpha 0.1: {mean_pinball_loss(future_target, pred_q01, alpha=0.1):.4f}')
 print(f'Pinball loss, alpha 0.9: {mean_pinball_loss(future_target, pred_q09, alpha=0.9):.4f}')
 
