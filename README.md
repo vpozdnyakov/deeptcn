@@ -4,6 +4,8 @@ deeptcn is a python package with an unofficial implementation of the DeepTCN pro
 
 deeptcn supports both gaussian and quantile loss functions, past and future covariates, univariates and multivariates time series.
 
+This implementation is based on the Pytorch Lightning framework.
+
 # Installation
 
 Install deeptcn using pip as follows:
@@ -41,5 +43,11 @@ print(f'Pinball loss, alpha 0.9: {mean_pinball_loss(future_target, pred_q09, alp
 # Pinball loss, alpha 0.9: 0.0143
 ```
 
-More examples here: [electricity.ipynb](examples/electricity.ipynb)
+<img src='https://raw.githubusercontent.com/vpozdnyakov/deeptcn/main/images/forecast_1.png' width=600>
+
+<img src='https://raw.githubusercontent.com/vpozdnyakov/deeptcn/main/images/forecast_2.png' width=600>
+
+<img src='https://raw.githubusercontent.com/vpozdnyakov/deeptcn/main/images/forecast_3.png' width=600>
+
+More examples here [electricity.ipynb](examples/electricity.ipynb)
 
