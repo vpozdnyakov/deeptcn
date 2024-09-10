@@ -254,12 +254,12 @@ class DeepTCN():
             past_target, dtype=torch.float32, device=self.model.device
             )[None, ...]
         if self.with_past_covariates:
-            assert past_covariates.shape == (self.input_len, self.past_cov_dim), "Unexpected past covariance shape"
+            assert past_covariates.shape == (self.input_len, self.past_cov_dim), "Unexpected past covariates shape"
             past_covariates = torch.as_tensor(
                 past_covariates, dtype=torch.float32, device=self.model.device
             )[None, ...]
         if self.with_future_covariates:
-            assert future_covariates.shape == (self.output_len, self.future_cov_dim), "Unexpected future covariance shape"
+            assert future_covariates.shape == (self.output_len, self.future_cov_dim), "Unexpected future covariates shape"
             future_covariates = torch.as_tensor(
                 future_covariates, dtype=torch.float32, device=self.model.device
             )[None, ...]
