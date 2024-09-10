@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import torch
 import numpy as np
+import pandas as pd
 
 
 class SlidingWindowDataset(Dataset):
@@ -36,3 +37,11 @@ class SlidingWindowDataset(Dataset):
             torch.as_tensor(future_cov, dtype=torch.float32), 
             torch.as_tensor(future_target, dtype=torch.float32)
         )
+
+
+def electricity_dataset():
+    electricity_train = pd.read_csv('../datasets/electricity/electricity_train.csv', index_col=0)
+    electricity_train.index = pd.to_datetime(electricity_train.index)
+    electricity_test = pd.read_csv('../datasets/electricity/electricity_test.csv', index_col=0)
+    electricity_test.index = pd.to_datetime(electricity_test.index)
+    return electricity_train, electricity_test
