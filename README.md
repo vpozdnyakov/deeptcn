@@ -33,7 +33,7 @@ future_target = test_target.iloc[input_len:]
 model = GaussianDeepTCN(input_len, output_len)
 model.fit(train_target.values)
 
-# Forecasting with the 80% confidence interval
+# Forecast with the 80% confidence interval
 pred_mu, pred_sigma = model.predict(past_target.values)
 pred_q01 = norm.ppf(q=0.1, loc=pred_mu, scale=pred_sigma)
 pred_q09 = norm.ppf(q=0.9, loc=pred_mu, scale=pred_sigma)
