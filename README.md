@@ -50,5 +50,5 @@ print(f'Pinball loss, alpha 0.9: {mean_pinball_loss(future_target, pred_q09, alp
 
 <img src='https://raw.githubusercontent.com/vpozdnyakov/deeptcn/main/images/forecast_3.png' width=600>
 
-More examples here [electricity.ipynb](examples/electricity.ipynb)
+More examples here [examples/electricity.ipynb](https://nbviewer.org/github/vpozdnyakov/deeptcn/blob/main/examples/electricity.ipynb)
 
