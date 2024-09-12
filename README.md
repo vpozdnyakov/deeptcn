@@ -2,7 +2,7 @@
 
 deeptcn is a python package with an unofficial implementation of the DeepTCN probabilistic forecasting model presented in the [paper](https://www.sciencedirect.com/science/article/abs/pii/S0925231220303441) "Probabilistic forecasting with temporal convolutional neural network" by Chen, Yitian, et al.
 
-deeptcn supports both gaussian and quantile loss functions, past and future covariates, univariates and multivariates time series.
+deeptcn supports gaussian and quantile prediction, past and future covariates, univariates and multivariates time series.
 
 This implementation is based on the Pytorch Lightning framework.
 
