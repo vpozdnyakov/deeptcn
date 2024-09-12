@@ -24,7 +24,7 @@ class GaussianDeepTCNModule(DeepTCNModule):
 
 class GaussianDeepTCN(DeepTCN):
     """
-    DeepTCN probabilistic model.
+    Gaussian DeepTCN probabilistic model.
     """
     def __init__(
             self, 
@@ -41,6 +41,23 @@ class GaussianDeepTCN(DeepTCN):
             accelerator: str='auto',
             validation_size: float=0.,
         ):
+        """
+        Args:
+            input_len: Length of an input time series (lookback window size).
+            output_len: Length of an output time series (forecasting horizon).
+            hidden_dim: Hidden dimensionality of TCN modules and the resnet-v module.
+            dropout: Dropout rate.
+            kernel_size: Kernel size of TCN modules.
+            num_layers: Number of TCN modules.
+            lr: Learning rate.
+            batch_size: Batch size.
+            num_epochs: Number of epochs.
+            verbose: Shows the progress bar during training.
+            accelerator: Supports passing different accelerator types 
+                ("cpu", "gpu", "tpu", "ipu", "hpu", "mps", "auto") as well as 
+                custom accelerator instances.
+            validation_size: The fraction (from 0 to 1) of train data for validation.
+        """
         super().__init__(
             input_len, output_len, hidden_dim, dropout, kernel_size, num_layers, 
             lr, batch_size, num_epochs, verbose, accelerator, validation_size

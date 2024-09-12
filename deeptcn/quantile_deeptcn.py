@@ -56,7 +56,7 @@ class QuantileDeepTCNModule(DeepTCNModule):
 
 class QuantileDeepTCN(DeepTCN):
     """
-    DeepTCN-Quantile probabilistic model.
+    Quantile DeepTCN probabilistic model.
     """
     def __init__(
             self, 
